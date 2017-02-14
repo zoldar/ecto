@@ -57,6 +57,14 @@ defmodule Ecto.Integration.AssocTest do
     assert p2.id == pid2
   end
 
+  test "belongs_to assoc with badly inferred key" do
+    comment = %Comment{text: "1"}
+    post = TestRepo.insert!(%Permalink{permalinked_comment: comment})
+
+    assert post.id == post.permalinked_comment.permalink_id
+    assert post.id == post.permalinked_comment.comment_permalink_id
+  end
+
   test "has_many through assoc" do
     p1 = TestRepo.insert!(%Post{})
     p2 = TestRepo.insert!(%Post{})

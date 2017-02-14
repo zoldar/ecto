@@ -94,6 +94,7 @@ defmodule Ecto.Integration.Comment do
     field :lock_version, :integer, default: 1
     belongs_to :post, Ecto.Integration.Post
     belongs_to :author, Ecto.Integration.User
+    belongs_to :comment_permalink, Ecto.Integration.Permalink
     has_one :post_permalink, through: [:post, :permalink]
   end
 
@@ -117,6 +118,7 @@ defmodule Ecto.Integration.Permalink do
     belongs_to :post, Ecto.Integration.Post, on_replace: :nilify
     belongs_to :user, Ecto.Integration.User
     has_many :post_comments_authors, through: [:post, :comments_authors]
+    has_one :permalinked_comment, Ecto.Integration.Comment
   end
 end
 

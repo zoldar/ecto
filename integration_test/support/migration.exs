@@ -52,6 +52,7 @@ defmodule Ecto.Integration.Migration do
       add :lock_version, :integer, default: 1
       add :post_id, references(:posts)
       add :author_id, references(:users)
+      add :comment_permalink_id, references(:permalinks)
     end
 
     create table(:customs, primary_key: false) do
