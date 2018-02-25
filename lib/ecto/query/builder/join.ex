@@ -191,25 +191,67 @@ defmodule Ecto.Query.Builder.Join do
   Applies the join expression to the query.
   """
   def apply(%Ecto.Query{joins: joins, aliases: aliases} = query, expr, as, count_bind) do
-    aliases = apply_aliases(aliases, as, count_bind)
-    %{query | joins: joins ++ [expr], aliases: aliases}
+    new_aliases = apply_aliases(aliases, joins, expr, as, count_bind)
+
+    case new_aliases do
+      {:new, aliases} ->
+        %{query | joins: joins ++ [expr], aliases: aliases}
+      {:unchanged, aliases} ->
+        %{query | joins: joins, aliases: aliases}
+      new_aliases ->
+        aliases = quote do
+          {_, aliases} = unquote(new_aliases)
+          aliases
+        end
+        joins = quote do
+          case unquote(new_aliases) do
+            {:new, _} -> unquote(joins) ++ [unquote(expr)]
+            {:unchanged, _} -> unquote(joins)
+          end
+        end
+        %{query | joins: joins, aliases: aliases}
+    end
   end
   def apply(query, expr, as, count_bind) do
     apply(Ecto.Queryable.to_query(query), expr, as, count_bind)
   end
 
-  def apply_aliases(aliases, nil, _), do: aliases
-  def apply_aliases(aliases = %{}, name, join_count) when is_atom(name) and is_integer(join_count) do
+  def apply_aliases(aliases, _, _, nil, _), do: {:new, aliases}
+  def apply_aliases(aliases, joins, %JoinExpr{} = expr, name, join_count) when is_atom(name) and is_integer(join_count) do
     if Map.has_key?(aliases, name) do
-      Builder.error! "alias `#{inspect name}` already exists"
+      existing_expr = Enum.at(joins, aliases[name] - 1)
+
+      IO.inspect existing_expr, label: :existing_expr
+      IO.inspect expr, label: :new_expr
+      if not join_exprs_equal?(existing_expr, expr) do
+        Builder.error! "alias `#{inspect name}` already exists"
+      else
+        {:unchanged, aliases}
+      end
     else
-      Map.put(aliases, name, join_count)
+      {:new, Map.put(aliases, name, join_count)}
     end
   end
-  def apply_aliases(aliases, name, join_count) do
-    quote do
-      Ecto.Query.Builder.Join.apply_aliases(unquote(Macro.escape(aliases)), unquote(name), unquote(join_count))
+  def apply_aliases(aliases, joins, expr, name, join_count) do
+    aliases = case aliases do
+      %{} -> Macro.escape(aliases)
+      _other -> aliases
     end
+    quote do
+      Ecto.Query.Builder.Join.apply_aliases(unquote(aliases), unquote(joins), unquote(expr), unquote(name), unquote(join_count))
+    end
+  end
+
+  defp join_exprs_equal?(%JoinExpr{on: on1} = expr1, %JoinExpr{on: on2} = expr2) do
+    sanitize = fn struct ->
+      struct
+      |> Map.from_struct()
+      |> Map.drop([:file, :line])
+    end
+
+    [on1, on2, expr1, expr2] = Enum.map([on1, on2, expr1, expr2], &sanitize.(&1))
+
+    %{expr1 | on: on1} == %{expr2 | on: on2}
   end
 
   @doc """

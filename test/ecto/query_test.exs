@@ -249,6 +249,22 @@ defmodule Ecto.QueryTest do
       end
     end
 
+    test "passes on assigning the same name to the same join" do
+      #query =
+      #  "posts"
+      #  |> join(:inner, [], b1 in "blogs", as: :blogs)
+      #  |> join(:inner, [], b2 in "blogs", as: :blogs)
+
+      #assert length(query.joins) == 1
+      #assert map_size(query.aliases) == 1
+
+      query =
+        "posts"
+        |> join(:inner, [], b1 in "blogs", on: b1.valid, as: :blogs)
+        |> join(:inner, [], b2 in "blogs", on: b2.valid, as: :blogs)
+
+    end
+
     test "match on binding by name" do
       query =
         "posts"
