@@ -323,10 +323,15 @@ defmodule Ecto.Integration.PreloadTest do
     p3 = TestRepo.insert!(%Post{title: "3"})
 
     # We use the same text to expose bugs in preload sorting
-    %Comment{id: cid1} = TestRepo.insert!(%Comment{text: "1", post_id: p1.id})
-    %Comment{id: cid3} = TestRepo.insert!(%Comment{text: "2", post_id: p2.id})
-    %Comment{id: cid2} = TestRepo.insert!(%Comment{text: "2", post_id: p1.id})
-    %Comment{id: cid4} = TestRepo.insert!(%Comment{text: "3", post_id: p2.id})
+    u1 = TestRepo.insert!(%User{name: "1"})
+    u2 = TestRepo.insert!(%User{name: "2"})
+    u3 = TestRepo.insert!(%User{name: "3"})
+
+    %Comment{id: cid1} = TestRepo.insert!(%Comment{text: "1", post_id: p1.id, author_id: u1.id})
+    %Comment{id: cid3} = TestRepo.insert!(%Comment{text: "2", post_id: p2.id, author_id: u1.id})
+    %Comment{id: cid2} = TestRepo.insert!(%Comment{text: "2", post_id: p1.id, author_id: u2.id})
+    %Comment{id: cid4} = TestRepo.insert!(%Comment{text: "3", post_id: p2.id, author_id: u3.id})
+
 
     assert %Ecto.Association.NotLoaded{} = p1.comments
 
@@ -362,6 +367,13 @@ defmodule Ecto.Integration.PreloadTest do
     assert c2.post.title == "1"
     assert c3.post.title == "2"
     assert c4.post.title == "2"
+
+    # With custom ordered query with nested preload
+    assert [pe3, pe1, pe2] = TestRepo.preload([p3, p1, p2],
+      comments_authors: from(u in User, order_by: [desc: u.name]))
+    assert [%User{name: "2"}, %User{name: "1"}] = pe1.comments_authors
+    assert [%User{name: "3"}, %User{name: "1"}] = pe2.comments_authors
+    assert [] = pe3.comments_authors
   end
 
   test "preload through with query" do
