@@ -153,17 +153,14 @@ defmodule Ecto.Repo.Preloader do
   end
 
   defp fetch_query(ids, _assoc, _repo_name, query, _prefix, {_, key}, _take, _opts) when is_function(query, 1) do
-    # Note we use an explicit sort because we don't want
-    # to reorder based on the struct. Only the ID.
     ids
     |> Enum.uniq
     |> query.()
     |> Enum.map(&{Map.fetch!(&1, key), &1})
-    |> Enum.sort(fn {id1, _}, {id2, _} -> id1 <= id2 end)
     |> unzip_ids([], [])
   end
 
-  defp fetch_query(ids, %{cardinality: card} = assoc, repo_name, query, prefix, related_key, take, opts) do
+  defp fetch_query(ids, assoc, repo_name, query, prefix, related_key, take, opts) do
     query = assoc.__struct__.assoc_query(assoc, query, Enum.uniq(ids))
     field = related_key_to_field(query, related_key)
 
@@ -172,18 +169,6 @@ defmodule Ecto.Repo.Preloader do
 
     # Add the related key to the query results
     query = update_in query.select.expr, &{:{}, [], [field, &1]}
-
-    # If we are returning many results, we must sort by the key too
-    query =
-      case card do
-        :many ->
-          update_in query.order_bys, fn order_bys ->
-            [%Ecto.Query.QueryExpr{expr: [asc: field], params: [],
-                                   file: __ENV__.file, line: __ENV__.line}|order_bys]
-          end
-        :one ->
-          query
-      end
 
     unzip_ids Ecto.Repo.Queryable.all(repo_name, query, opts), [], []
   end
@@ -219,17 +204,12 @@ defmodule Ecto.Repo.Preloader do
   end
 
   defp many_assoc_map([id|ids], [struct|structs], map) do
-    {ids, structs, acc} = split_while(ids, structs, id, [struct])
-    many_assoc_map(ids, structs, Map.put(map, id, acc))
+    map = Map.update(map, id, [struct], &[struct|&1])
+    many_assoc_map(ids, structs, map)
   end
   defp many_assoc_map([], [], map) do
     map
   end
-
-  defp split_while([id|ids], [struct|structs], id, acc),
-    do: split_while(ids, structs, id, [struct|acc])
-  defp split_while(ids, structs, _id, acc),
-    do: {ids, structs, acc}
 
   ## Load preloaded data
 
